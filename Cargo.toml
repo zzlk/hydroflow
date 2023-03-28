@@ -28,5 +28,18 @@ opt-level = 3
 
 [profile.profile]
 inherits = "release"
-debug = 2
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
+debug = true
 strip = "none"
+#codegen-units = 1
+lto = "fat"
+incremental = false
+
+#[profile.profile.package."*"]
+#inherits = "profile"
+#debug = true
+#strip = "none"
+#incremental = false
+

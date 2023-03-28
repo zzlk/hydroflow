@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 mod anti_join;
 mod batch;
+mod batch_iter_fn;
 mod cross_join;
 mod demux;
 mod dest_sink;
@@ -33,6 +34,7 @@ mod identity;
 mod initialize;
 mod inspect;
 mod join;
+mod lattice_join;
 mod map;
 mod merge;
 mod next_stratum;
@@ -49,6 +51,7 @@ mod source_json;
 mod source_stdin;
 mod source_stream;
 mod source_stream_serde;
+mod stamp;
 mod tee;
 mod unique;
 mod unzip;
@@ -258,6 +261,7 @@ pub const NULL_WRITE_FN: WriteFn = |write_context_args, _| {
 pub const OPERATORS: &[OperatorConstraints] = &[
     anti_join::ANTI_JOIN,
     batch::BATCH,
+    batch_iter_fn::BATCH_ITER_FN,
     cross_join::CROSS_JOIN,
     demux::DEMUX,
     dest_sink::DEST_SINK,
@@ -274,6 +278,7 @@ pub const OPERATORS: &[OperatorConstraints] = &[
     initialize::INITIALIZE,
     inspect::INSPECT,
     join::JOIN,
+    lattice_join::LATTICE_JOIN,
     map::MAP,
     merge::MERGE,
     next_stratum::NEXT_STRATUM,
@@ -282,6 +287,7 @@ pub const OPERATORS: &[OperatorConstraints] = &[
     persist::PERSIST,
     reduce::REDUCE,
     repeat_iter::REPEAT_ITER,
+    stamp::STAMP,
     sort::SORT,
     sort_by::SORT_BY,
     source_interval::SOURCE_INTERVAL,
