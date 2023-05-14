@@ -17,8 +17,10 @@ cli_integration = [ "dep:hydroflow_cli_integration" ]
 
 [dependencies]
 bincode = "1.3"
+#bincode2 = { package = "bincode", path = "../../bincode", features = [ "derive", "serde" ] }
+bincode2 = { package = "bincode", rev = "e1cadfd34edacfea4c8b4841e5031c665a646ad3", git = "https://github.com/zzlk/bincode.git", features = [ "std", "derive", "serde" ] }
 byteorder = "1.4.3"
-bytes = "1.1.0"
+bytes = { version = "1.4.0" }
 futures = { version = "0.3", optional = true }
 hydroflow_cli_integration = { optional = true, path = "../hydroflow_cli_integration", version = "0.0.0" }
 hydroflow_datalog = { optional = true, path = "../hydroflow_datalog", version = "0.0.0" }

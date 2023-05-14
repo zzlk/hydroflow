@@ -5,15 +5,11 @@ use tokio_stream::StreamExt;
 
 use crate::buffer_pool::BufferPool;
 use crate::protocol::KvsRequest;
-use crate::protocol::KvsRequestDeserializer;
 use crate::protocol::KvsResponse;
 use crate::protocol::MyLastWriteWins;
 use crate::protocol::MySetUnion;
-use bincode::options;
 use rand::Rng;
 use rand::SeedableRng;
-use serde::de::DeserializeSeed;
-use serde::Serialize;
 use std::rc::Rc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -33,9 +29,11 @@ use bytes::BufMut;
 use bytes::Bytes;
 use bytes::BytesMut;
 use hydroflow::compiled::pull::HalfMultisetJoinState;
+use tokio_stream::wrappers::ReceiverStream;
 
 pub fn run_server<RX>(
     server_id: usize,
+    mut incoming_client_reqs: ReceiverStream<Vec<Bytes>>,
     topology: Topology<RX>,
     dist: f64,
     throughput: Arc<AtomicUsize>,
@@ -52,35 +50,44 @@ pub fn run_server<RX>(
         rt.block_on(async {
             const BUFFER_SIZE: usize = 1024;
 
-            let buffer_pool = BufferPool::<BUFFER_SIZE>::create_buffer_pool();
-
             let (transducer_to_peers_tx, mut transducer_to_peers_rx) =
                 hydroflow::util::unsync_channel::<(Bytes, NodeId)>(None);
 
             let (client_to_transducer_tx, client_to_transducer_rx) =
-                hydroflow::util::unsync_channel::<(KvsRequest<BUFFER_SIZE>, NodeId)>(None);
+                hydroflow::util::unsync_channel::<(KvsRequest, NodeId)>(None);
             let (transducer_to_client_tx, mut _transducer_to_client_rx) =
-                hydroflow::util::unsync_channel::<(KvsResponse<BUFFER_SIZE>, NodeId)>(None);
+                hydroflow::util::unsync_channel::<(KvsResponse, NodeId)>(None);
 
             let localset = tokio::task::LocalSet::new();
 
-            let inbound_networking_task = localset.run_until({
-                let buffer_pool = buffer_pool.clone();
+            let inbound_client_req_task = localset.run_until({
+
+                let client_to_transducer_tx = client_to_transducer_tx.clone();
 
                 async {
-                    task::spawn_local({
-
-                        async move {
-                            let mut joined_streams = futures::stream::select_all(topology.rx);
-
-                            while let Some((node_id, req)) = joined_streams.next().await {
-                                let mut deserializer = bincode::Deserializer::from_slice(&req, options());
-                                let req = KvsRequestDeserializer {
-                                    collector: Rc::clone(&buffer_pool),
-                                }.deserialize(&mut deserializer).unwrap();
-
-                                client_to_transducer_tx.try_send((req, node_id)).unwrap();
+                    task::spawn_local(async move {
+                        while let Some(bytes) = incoming_client_reqs.next().await {
+                            for bytes in bytes {
+                                let req = bincode2::serde::decode_from_bytes(bytes, bincode2::config::standard()).unwrap().0;
+                                client_to_transducer_tx.try_send((req, 99999)).unwrap();
                             }
+                        }
+                    })
+                    .await
+                    .unwrap()
+                }
+            });
+
+            let inbound_networking_task = localset.run_until({
+
+                async {
+                    task::spawn_local(async move {
+                        let mut joined_streams = futures::stream::select_all(topology.rx);
+
+                        while let Some((node_id, bytes)) = joined_streams.next().await {
+
+                            let req = bincode2::serde::decode_from_bytes(bytes, bincode2::config::standard()).unwrap().0;
+                            client_to_transducer_tx.try_send((req, node_id)).unwrap();
                         }
                     })
                     .await
@@ -152,39 +159,39 @@ pub fn run_server<RX>(
 
             let mut df = hydroflow_syntax! {
 
-                simulated_put_requests = repeat_fn(2000, move || {
-                    let value = BufferPool::get_from_buffer_pool(&buffer_pool);
+                // simulated_put_requests = repeat_fn(2000, move || {
+                //     let value = BufferPool::get_from_buffer_pool(&buffer_pool);
 
-                    // Did the original C++ benchmark do anything with the data..?
-                    // Can uncomment this to modify the buffers then.
-                    //
-                    // let mut borrow = buff.borrow_mut().unwrap();
+                //     // Did the original C++ benchmark do anything with the data..?
+                //     // Can uncomment this to modify the buffers then.
+                //     //
+                //     // let mut borrow = buff.borrow_mut().unwrap();
 
-                    // let mut r = rng.sample(dist_uniform) as u64;
-                    // for i in 0..8 {
-                    //     borrow[i] = (r % 256) as u8;
-                    //     r /= 256;
-                    // }
+                //     // let mut r = rng.sample(dist_uniform) as u64;
+                //     // for i in 0..8 {
+                //     //     borrow[i] = (r % 256) as u8;
+                //     //     r /= 256;
+                //     // }
 
-                    let key = pre_gen_random_numbers[pre_gen_index % pre_gen_random_numbers.len()];
-                    pre_gen_index += 1;
+                //     let key = pre_gen_random_numbers[pre_gen_index % pre_gen_random_numbers.len()];
+                //     pre_gen_index += 1;
 
-                    (KvsRequest::Put {
-                        key,
-                        value,
-                    }, 99999999)
-                });
+                //     (KvsRequest::Put {
+                //         key,
+                //         value,
+                //     }, 99999999)
+                // });
 
                 merge_puts_and_gossip_requests = merge();
 
-                simulated_put_requests -> merge_puts_and_gossip_requests;
+                // simulated_put_requests -> merge_puts_and_gossip_requests;
                 source_stream(client_to_transducer_rx)
                     // -> inspect(|x| println!("{server_id}:{:5}: from peers: {x:?}", context.current_tick()))
                     -> merge_puts_and_gossip_requests;
 
                 client_input = merge_puts_and_gossip_requests
                     -> enumerate::<'tick>()
-                    -> demux(|(e, (req, addr)): (usize, (KvsRequest<BUFFER_SIZE>, NodeId)), var_args!(gets, store, broadcast)| {
+                    -> demux(|(e, (req, addr)): (usize, (KvsRequest, NodeId)), var_args!(gets, store, broadcast)| {
                         match req {
                             KvsRequest::Put {key, value} => {
                                 throughput_internal += 1;
@@ -234,12 +241,9 @@ pub fn run_server<RX>(
                     -> map(|(key, reg)| MapUnionSingletonMap::new_from((key, reg)))
                     -> lattice_batch::<MapUnionHashMap<_, _>>(batch_interval_ticker)
                     -> map(|lattice| {
-                        use bincode::Options;
-                        let serialization_options = options();
                         let req = KvsRequest::Gossip { map: lattice };
-                        let mut serialized = BytesMut::with_capacity(serialization_options.serialized_size(&req).unwrap() as usize);
-                        let mut serializer = bincode::Serializer::new((&mut serialized).writer(), options());
-                        Serialize::serialize(&req, &mut serializer).unwrap();
+                        let mut serialized = BytesMut::with_capacity(4096);
+                        bincode2::serde::encode_into_std_write(&req, &mut (&mut serialized).writer(), bincode2::config::standard()).unwrap();
 
                         serialized.freeze()
                     })
@@ -250,7 +254,7 @@ pub fn run_server<RX>(
                     -> for_each(|(node_id, serialized_req)| transducer_to_peers_tx.try_send((serialized_req, node_id)).unwrap());
 
                 // join for lookups
-                lookup = lattice_join::<'static, 'tick, MyLastWriteWins<BUFFER_SIZE>, MySetUnion>();
+                lookup = lattice_join::<'static, 'tick, MyLastWriteWins, MySetUnion>();
 
                 client_input[store]
                     // -> inspect(|x| println!("{server_id}:{:5}: stores-into-lookup: {x:?}", context.current_tick()))
@@ -288,7 +292,7 @@ pub fn run_server<RX>(
 
             let hydroflow_task = df.run_async();
 
-            futures::join!(inbound_networking_task, outbound_networking_task, hydroflow_task, f3);
+            futures::join!(inbound_networking_task, outbound_networking_task, hydroflow_task, f3, inbound_client_req_task);
         });
     });
 }

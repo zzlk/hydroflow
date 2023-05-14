@@ -25,7 +25,14 @@ members = [
     "variadics",
 ]
 
+
+
 resolver = "2"
+
+[patch.crates-io]
+serde = { package = "serde", rev = "72fa9b09a78cb019dc918c3ce829cdfbc9cd96aa", git = "https://github.com/zzlk/serde.git", optional = true }
+serde_derive = { package = "serde_derive", rev = "72fa9b09a78cb019dc918c3ce829cdfbc9cd96aa", git = "https://github.com/zzlk/serde.git", optional = true }
+
 
 [profile.release]
 strip = true      # Strip symbols from the binary
@@ -37,5 +44,9 @@ lto = "fat"
 
 [profile.profile]
 inherits = "release"
+debug = 2
+strip = "none"
+
+[profile.profile.package."*"]
 debug = 2
 strip = "none"
