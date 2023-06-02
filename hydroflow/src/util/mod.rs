@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 //! Helper utilities for the Hydroflow surface syntax.
 
+pub mod adapters;
 pub mod clear;
 pub mod monotonic_map;
 pub mod unsync;

@@ -16,6 +16,7 @@ hydroflow_datalog = [ "dep:hydroflow_datalog" ]
 cli_integration = [ "dep:hydroflow_cli_integration" ]
 
 [dependencies]
+async-trait = "0.1"
 bincode = "1.3"
 byteorder = "1.4.3"
 bytes = "1.1.0"

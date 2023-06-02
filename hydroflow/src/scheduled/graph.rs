@@ -3,10 +3,12 @@
 use std::any::Any;
 use std::borrow::Cow;
 use std::cell::Cell;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::future::Future;
+use std::io::Error;
 use std::marker::PhantomData;
 
+use bytes::Bytes;
 use hydroflow_lang::diagnostic::{Diagnostic, SerdeSpan};
 use hydroflow_lang::graph::HydroflowGraph;
 use ref_cast::RefCast;
@@ -20,6 +22,7 @@ use super::reactor::Reactor;
 use super::state::StateHandle;
 use super::subgraph::Subgraph;
 use super::{HandoffId, SubgraphId};
+use crate::util::unsync;
 
 /// A Hydroflow graph. Owns, schedules, and runs the compiled subgraphs.
 pub struct Hydroflow {
@@ -39,6 +42,11 @@ pub struct Hydroflow {
     meta_graph: Option<HydroflowGraph>,
     /// See [`Self::diagnostics()`].
     diagnostics: Option<Vec<Diagnostic<SerdeSpan>>>,
+
+    /// TODO:
+    /// For now we can just use Bytes and in the future use a better data structure.
+    incoming_ports: HashMap<&'static str, unsync::mpsc::Sender<Result<Bytes, Error>>>,
+    outgoing_ports: HashMap<&'static str, tokio::sync::mpsc::Receiver<Result<Bytes, Error>>>,
 }
 impl Default for Hydroflow {
     fn default() -> Self {
@@ -67,6 +75,9 @@ impl Default for Hydroflow {
 
             meta_graph: None,
             diagnostics: None,
+
+            incoming_ports: Default::default(),
+            outgoing_ports: Default::default(),
         }
     }
 }
@@ -74,6 +85,40 @@ impl Hydroflow {
     /// Create a new empty Hydroflow graph.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Add an input port to the graph
+    #[doc(hidden)]
+    pub fn __add_in_port_sender(
+        &mut self,
+        name: &'static str,
+        tx: unsync::mpsc::Sender<Result<Bytes, Error>>,
+    ) {
+        self.incoming_ports.insert(name, tx);
+    }
+
+    /// Add an output port to the graph
+    #[doc(hidden)]
+    pub fn __add_out_port_receiver(
+        &mut self,
+        name: &'static str,
+        tx: tokio::sync::mpsc::Receiver<Result<Bytes, Error>>,
+    ) {
+        self.outgoing_ports.insert(name, tx);
+    }
+
+    /// Take all the input port senders.
+    pub fn take_port_senders(
+        &mut self,
+    ) -> HashMap<&'static str, unsync::mpsc::Sender<Result<Bytes, Error>>> {
+        std::mem::take(&mut self.incoming_ports)
+    }
+
+    /// Take all the output port receivers.
+    pub fn take_port_receivers(
+        &mut self,
+    ) -> HashMap<&'static str, tokio::sync::mpsc::Receiver<Result<Bytes, Error>>> {
+        std::mem::take(&mut self.outgoing_ports)
     }
 
     /// Assign the `HydroflowGraph` via JSON string.

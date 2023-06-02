@@ -446,6 +446,7 @@ async fn asynctest_event_repeat_iter() {
     let seen: Vec<_> = collect_ready_async(b_recv).await;
     assert_eq!(&[0, 1, 2, 0, 1, 2, 10], &*seen);
 }
+<<<<<<< Updated upstream
 
 #[hydroflow::test]
 async fn asynctest_tcp() {
@@ -514,3 +515,31 @@ async fn asynctest_udp() {
     let seen: Vec<_> = collect_ready_async(rx_out).await;
     assert_eq!(&["Hello".to_owned()], &*seen);
 }
+||||||| Stash base
+=======
+
+// #[hydroflow::test]
+// pub async fn test_source_and_dest_ports() {
+//     let mut df = hydroflow_syntax! {
+//         source_port("source") -> dest_port("dest");
+//     };
+
+//     let mut inputs = df.take_port_senders();
+//     let mut outputs = df.take_port_receivers();
+
+//     let input = inputs.remove("source").unwrap();
+//     let mut output = outputs.remove("dest").unwrap();
+
+//     input
+//         .send(Ok(bytes::Bytes::from_static(b"test")))
+//         .await
+//         .unwrap();
+
+//     df.run_available_async().await;
+
+//     assert_eq!(
+//         output.recv().await.unwrap().unwrap(),
+//         bytes::Bytes::from_static(b"test")
+//     );
+// }
+>>>>>>> Stashed changes
