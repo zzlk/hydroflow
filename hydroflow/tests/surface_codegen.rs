@@ -668,6 +668,41 @@ pub fn test_surface_syntax_reachability_generated() {
 }
 
 #[multiplatform_test]
+pub fn test_persist() {
+    // let mut df = hydroflow_syntax! {
+    //     my_diff = difference();
+
+    //     source_iter([1, 2])
+    //         -> persist()
+    //         -> [pos]my_diff;
+
+    //     source_iter([2])
+    //         -> [neg]my_diff;
+
+    //     my_diff
+    //         -> for_each(|x| println!("df1: {x}"));
+    // };
+    // df.run_available();
+    // println!("{}", df2.meta_graph().unwrap().to_mermaid());
+
+    let (tx, mut rx) = hydroflow::util::unbounded_channel::<usize>();
+
+    let mut df2 = hydroflow_syntax! {
+        source_iter([1, 2, 1, 2, 1])
+            -> fold::<'static>(Vec::default(), |mut a: Vec<_>, b| { a.push(b); a })
+            -> flatten()
+            -> inspect(|x| println!("meme: {x}"))
+            -> fold(0, |a, b| a + b)
+            -> for_each(|x| tx.send(x).unwrap());
+    };
+
+    df2.run_available();
+    let output = collect_ready::<Vec<_>, _>(&mut rx);
+
+    assert_eq!(output, vec![1 + 2 + 1 + 2 + 1])
+}
+
+#[multiplatform_test]
 pub fn test_transitive_closure() {
     // An edge in the input data = a pair of `usize` vertex IDs.
     let (pairs_send, pairs_recv) = hydroflow::util::unbounded_channel::<(usize, usize)>();

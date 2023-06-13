@@ -68,7 +68,7 @@ pub const LATTICE_MERGE: OperatorConstraints = OperatorConstraints {
         let lat_type = &type_args[0];
 
         let arguments = parse_quote_spanned! {lat_type.span()=> // Uses `lat_type.span()`!
-            #root::lattices::Merge::<#lat_type>::merge_owned
+            <#lat_type as #root::lattices::Merge::<_>>::merge_owned
         };
         let wc = WriteContextArgs {
             op_inst: &OperatorInstance {
@@ -87,15 +87,15 @@ pub const LATTICE_MERGE: OperatorConstraints = OperatorConstraints {
             let #input = {
                 /// Improve errors with `#lat_type` trait bound.
                 #[inline(always)]
-                fn check_inputs<Lat>(
-                    input: impl ::std::iter::Iterator<Item = Lat>
-                ) -> impl ::std::iter::Iterator<Item = Lat>
+                fn check_inputs<Lat, LatOther>(
+                    input: impl ::std::iter::Iterator<Item = LatOther>
+                ) -> impl ::std::iter::Iterator<Item = LatOther>
                 where
-                    Lat: #root::lattices::Merge<Lat>,
+                    Lat: #root::lattices::Merge<LatOther>,
                 {
                     input
                 }
-                check_inputs::<#lat_type>(#input)
+                check_inputs::<#lat_type, _>(#input)
             };
             #write_iterator
         };

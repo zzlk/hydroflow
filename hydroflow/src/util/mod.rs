@@ -18,6 +18,9 @@ mod socket;
 #[cfg(unix)]
 pub use socket::*;
 
+mod bag;
+pub use bag::{Bag, Iter};
+
 #[cfg(feature = "cli_integration")]
 pub mod cli;
 

@@ -259,6 +259,8 @@ declare_ops![
     next_tick::NEXT_TICK,
     null::NULL,
     persist::PERSIST,
+    persist_mut::PERSIST_MUT,
+    persist_mut_keyed::PERSIST_MUT_KEYED,
     reduce::REDUCE,
     spin::SPIN,
     sort::SORT,

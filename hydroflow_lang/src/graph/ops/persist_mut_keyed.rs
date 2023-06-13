@@ -36,8 +36,8 @@ use crate::graph::{OpInstGenerics, OperatorInstance};
 /// // (hello, (world, oakland))
 /// // (hello, (world, san francisco))
 /// ```
-pub const PERSIST: OperatorConstraints = OperatorConstraints {
-    name: "persist",
+pub const PERSIST_MUT_KEYED: OperatorConstraints = OperatorConstraints {
+    name: "persist_mut_keyed",
     categories: &[OperatorCategory::Persistence],
     hard_range_inn: RANGE_1,
     soft_range_inn: RANGE_1,
@@ -90,7 +90,7 @@ pub const PERSIST: OperatorConstraints = OperatorConstraints {
         let generic_type_arg = type_args
             .get(0)
             .map(ToTokens::to_token_stream)
-            .unwrap_or(quote_spanned!(op_span=> ::std::vec::Vec<_>));
+            .unwrap_or(quote_spanned!(op_span=> #root::util::Bag<_>));
 
         let persistdata_ident = wc.make_ident("persistdata");
         let vec_ident = wc.make_ident("persistvec");
@@ -104,24 +104,39 @@ pub const PERSIST: OperatorConstraints = OperatorConstraints {
 
         let write_iterator = if is_pull {
             let input = &inputs[0];
+
             quote_spanned! {op_span=>
+                fn check_input<K, V>(
+                    iter: impl Iterator<Item = ((K, V), bool)>,
+                ) -> impl Iterator<Item = ((K, V), bool)> {
+                    iter
+                }
+
                 let mut #vec_ident = #context.state_ref(#persistdata_ident).borrow_mut();
                 let (ref mut #tick_ident, ref mut #vec_ident) = &mut *#vec_ident;
                 let #ident = {
                     if *#tick_ident <= #context.current_tick() {
                         *#tick_ident = 1 + #context.current_tick();
-                        for item in #input {
-                            Persistence::persist(#vec_ident, item);
+                        for ((k, v), unpersist) in check_input(#input) {
+                            if unpersist {
+                                PersistenceMutKeyed::unpersist(#vec_ident, k);
+                            } else {
+                                PersistenceKeyed::persist(#vec_ident, k, v);
+                            }
                         }
-                        Persistence::iter(#vec_ident).cloned()
+                        PersistenceKeyed::iter(#vec_ident)
                     } else {
-                        for item in #input {
-                            Persistence::persist(#vec_ident, item);
+                        for ((k, v), unpersist) in check_input(#input) {
+                            if unpersist {
+                                PersistenceMutKeyed::unpersist(#vec_ident, k);
+                            } else {
+                                PersistenceKeyed::persist(#vec_ident, k, v);
+                            }
                         }
                         // TODO: how to handle the semi-persistence stuff
                         // let len = #vec_ident.len();
                         // #vec_ident[len..].iter().cloned()
-                        Persistence::iter(#vec_ident).cloned()
+                        PersistenceKeyed::iter(#vec_ident)
                     }
                 };
             }
@@ -143,7 +158,7 @@ pub const PERSIST: OperatorConstraints = OperatorConstraints {
                             });
                         }
                         #root::pusherator::map::Map::new(|item| {
-                            Persistence::persist(vec, item);
+                            PersistenceKeyed::persist(vec, item);
                             vec.last().unwrap().clone()
                         }, output)
                     }
