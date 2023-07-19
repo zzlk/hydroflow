@@ -10,8 +10,8 @@ pub fn main() {
     let mut df = hydroflow_syntax! {
         src = union() -> tee();
 
-        source_iter([("a", 2), ("b", 4), ("a", 8)]) -> src;
-        source_iter([("a", 16), ("b", 32)]) -> defer_tick() -> src;
+        source_iter([("a", 1), ("b", 2), ("a", 4)]) -> src;
+        source_iter([("a", 8), ("b", 16)]) -> defer_tick() -> src;
 
         src
             -> persist()
