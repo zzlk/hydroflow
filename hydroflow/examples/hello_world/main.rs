@@ -9,19 +9,24 @@ pub fn main() {
     }
 
     let mut df = hydroflow_syntax! {
+        //
+        // Test Inputs
+        //
+        source_iter([("a", 1), ("b", 2), ("c", 4)]) -> src;
+        source_iter([("a", 8), ("b", 16)]) -> defer_tick() -> src;
+        source_iter([("a", 32)]) -> defer_tick() -> defer_tick() -> src;
+
+        //
+        // This would probably be a hydro-deploy channel at some point
+        //
         src = union() -> tee();
 
-        source_iter([("a", 1), ("b", 2), ("a", 4)]) -> src;
-        source_iter([("a", 8), ("b", 16)]) -> defer_tick() -> src;
-
-        src
-            -> persist()
-            -> reduce_keyed(merge)
-            -> [0]J;
-
+        //
+        // Query side
+        //
         src
             -> map(|(from, _data)| from)
-            -> enumerate::<'static>()
+            -> enumerate()
             -> [0]cj1;
 
         source_iter(NEIGHBORS)
@@ -40,14 +45,28 @@ pub fn main() {
         cj2 = cross_join::<HalfMultisetJoinState>()
             -> filter(|((to, _req_id), node_id)| node_id != to)
             -> map(|((to, req_id), node_id)| (node_id, (req_id, to)))
-            -> [1]J;
+            -> [0]j;
 
-        J = join_multiset()
-            -> map(|(_node_id, (data, (req_id, to)))| ((req_id, to), data))
+        //
+        // Storage side
+        //
+        src
+            -> persist()
+            -> reduce_keyed(merge)
+            -> [1]j;
+
+        //
+        // Join output
+        //
+        j = join_multiset()
+            -> map(|(_node_id, ((req_id, to), data))| ((req_id, to), data))
             -> reduce_keyed(merge)
             -> sort()
-            -> for_each(|((req_id, to), data)| println!("req_id: {req_id}, To: {to}, Data: {data}"));
+            -> for_each(|((req_id, to), data)| println!("req_id_this_tick: {req_id}, To: {to}, Data: {data}"));
     };
+
+    df.run_tick();
+    println!("<Tick Boundary>");
     df.run_tick();
     println!("<Tick Boundary>");
     df.run_tick();
