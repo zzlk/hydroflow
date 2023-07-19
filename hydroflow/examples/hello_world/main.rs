@@ -17,13 +17,11 @@ pub fn main() {
         src
             -> persist()
             -> reduce_keyed(merge)
-            // -> inspect(|x| println!("LHS: {x:?}"))
             -> [0]J;
 
         src
             -> map(|(from, _data)| from)
             -> enumerate::<'static>()
-            // -> inspect(|x| println!("CJ1-RHS: {x:?}"))
             -> [0]cj1;
 
         source_iter(NEIGHBORS)
@@ -31,16 +29,23 @@ pub fn main() {
             -> [1]cj1;
 
         cj1 = cross_join::<HalfMultisetJoinState>()
-            -> filter_map(|((req_id, from), to)| if to != from { Some((to, req_id)) } else { None })
-            -> flat_map(|(to, req_id)| NEIGHBORS.into_iter().map(move |node_id| (node_id, (req_id, to))))
-            -> filter(|(node_id, (_, to))| node_id != to)
+            -> filter(|((_req_id, from), to)| to != from)
+            -> map(|((req_id, _from), to)| (to, req_id))
+            -> [0]cj2;
+
+        source_iter(NEIGHBORS)
+            -> persist()
+            -> [1]cj2;
+
+        cj2 = cross_join::<HalfMultisetJoinState>()
+            -> filter(|((to, _req_id), node_id)| node_id != to)
+            -> map(|((to, req_id), node_id)| (node_id, (req_id, to)))
             -> [1]J;
 
         J = join_multiset()
-            // -> inspect(|x| println!("J: {x:?}"))
             -> map(|(_node_id, (data, (req_id, to)))| ((req_id, to), data))
             -> reduce_keyed(merge)
-            -> sort_by_key(|((req_id, _to), _data)| req_id)
+            -> sort()
             -> for_each(|((req_id, to), data)| println!("req_id: {req_id}, To: {to}, Data: {data}"));
     };
     df.run_tick();
