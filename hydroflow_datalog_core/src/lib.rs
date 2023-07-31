@@ -968,7 +968,7 @@ mod tests {
     }
 
     #[test]
-    fn test_anti_join() {
+    fn test_anti_join_multiset() {
         test_snapshots!(
             r#"
             .input ints_1 `source_stream(ints_1)`

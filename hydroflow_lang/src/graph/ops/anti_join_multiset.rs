@@ -14,13 +14,15 @@ use crate::graph::PortIndexValue;
 /// streams, returning items in the `pos` input that do not have matching keys
 /// in the `neg` input.
 ///
+/// The positive input side is taken as a stream rather than a set, for set semantics see `anti_join`
+///
 /// ```hydroflow
 /// source_iter(vec![("dog", 1), ("cat", 2), ("elephant", 3)]) -> [pos]diff;
 /// source_iter(vec!["dog", "cat", "gorilla"]) -> [neg]diff;
-/// diff = anti_join() -> assert_eq([("elephant", 3)]);
+/// diff = anti_join_multiset() -> assert_eq([("elephant", 3)]);
 /// ```
-pub const ANTI_JOIN: OperatorConstraints = OperatorConstraints {
-    name: "anti_join",
+pub const ANTI_JOIN_MULTISET: OperatorConstraints = OperatorConstraints {
+    name: "anti_join_multiset",
     categories: &[OperatorCategory::MultiIn],
     hard_range_inn: &(2..=2),
     soft_range_inn: &(2..=2),

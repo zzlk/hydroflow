@@ -72,7 +72,7 @@ fn emit_join_input_pipeline(
     // Whether this node contributes to the left or right side of the join.
     join_side: JoinSide,
     // Whether the pipeline is for an anti-join.
-    anti_join: bool,
+    anti_join_multiset: bool,
     // The Hydroflow graph to emit the pipeline to.
     flat_graph_builder: &mut FlatGraphBuilder,
 ) {
@@ -109,7 +109,7 @@ fn emit_join_input_pipeline(
     let source_name = &source_expanded.name;
     let source_type = &source_expanded.tuple_type;
 
-    let rhs: Pipeline = if anti_join {
+    let rhs: Pipeline = if anti_join_multiset {
         match join_side {
             JoinSide::Left => {
                 parse_quote_spanned!(source_expanded.span=> map(|_v: #source_type| ((#(#hash_keys, )*), (#(#not_hash_keys, )*))) -> [pos] #join_node)
@@ -122,7 +122,7 @@ fn emit_join_input_pipeline(
         parse_quote_spanned!(source_expanded.span=> map(|_v: #source_type| ((#(#hash_keys, )*), (#(#not_hash_keys, )*))) -> [#out_index] #join_node)
     };
 
-    let rhs = if anti_join && source_expanded.persisted {
+    let rhs = if anti_join_multiset && source_expanded.persisted {
         parse_quote_spanned!(source_expanded.span=> persist() -> #rhs)
     } else {
         rhs
@@ -453,7 +453,7 @@ pub fn expand_join_plan(
             if is_anti {
                 // this is always a 'tick join, so we place a persist operator in the join input pipeline
                 flat_graph_builder.add_statement(parse_quote_spanned! {get_span(rule_span)=>
-                    #join_node = anti_join() -> map(#flatten_closure);
+                    #join_node = anti_join_multiset() -> map(#flatten_closure);
                 });
             } else {
                 flat_graph_builder.add_statement(

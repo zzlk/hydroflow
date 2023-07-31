@@ -228,7 +228,7 @@ macro_rules! declare_ops {
     };
 }
 declare_ops![
-    anti_join::ANTI_JOIN,
+    anti_join_multiset::ANTI_JOIN_MULTISET,
     assert::ASSERT,
     assert_eq::ASSERT_EQ,
     cross_join::CROSS_JOIN,

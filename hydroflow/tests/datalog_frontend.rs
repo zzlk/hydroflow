@@ -522,7 +522,7 @@ pub fn test_defer_tick() {
 }
 
 #[multiplatform_test]
-pub fn test_anti_join() {
+pub fn test_anti_join_multiset() {
     let (ints_1_send, ints_1) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_2_send, ints_2) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_3_send, ints_3) = hydroflow::util::unbounded_channel::<(usize,)>();
@@ -561,7 +561,7 @@ pub fn test_anti_join() {
 }
 
 #[multiplatform_test]
-pub fn test_anti_join_defer_tick() {
+pub fn test_anti_join_multiset_defer_tick() {
     let (ints_1_send, ints_1) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_2_send, ints_2) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_3_send, ints_3) = hydroflow::util::unbounded_channel::<(usize,)>();
@@ -604,7 +604,7 @@ pub fn test_anti_join_defer_tick() {
 }
 
 #[multiplatform_test]
-pub fn test_anti_join_defer_cycle() {
+pub fn test_anti_join_multiset_defer_cycle() {
     let (ints_1_send, ints_1) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_2_send, ints_2) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (ints_3_send, ints_3) = hydroflow::util::unbounded_channel::<(usize,)>();

@@ -254,7 +254,7 @@ fn ops(c: &mut Criterion) {
                 let input1: Vec<usize> = (0..NUM_INTS).map(|_| dist.sample(&mut rng)).collect();
 
                 hydroflow_syntax! {
-                    my_antijoin = anti_join();
+                    my_antijoin = anti_join_multiset();
 
                     source_iter(black_box(input0)) -> [pos]my_antijoin;
                     source_iter(black_box(input1)) -> [neg]my_antijoin;

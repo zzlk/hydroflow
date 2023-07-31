@@ -321,12 +321,12 @@ pub fn test_defer_tick() {
 }
 
 #[multiplatform_test]
-pub fn test_anti_join() {
+pub fn test_anti_join_multiset() {
     let (inp_send, inp_recv) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let (out_send, mut out_recv) = hydroflow::util::unbounded_channel::<(usize, usize)>();
     let mut flow = hydroflow::hydroflow_syntax! {
         inp = source_stream(inp_recv) -> tee();
-        diff = anti_join() -> for_each(|x| out_send.send(x).unwrap());
+        diff = anti_join_multiset() -> for_each(|x| out_send.send(x).unwrap());
         inp -> [pos]diff;
         inp -> defer_tick() -> map(|x: (usize, usize)| x.0) -> [neg]diff;
     };
