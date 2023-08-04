@@ -21,14 +21,12 @@ pub struct HalfSetJoinState<Key, ValBuild, ValProbe> {
     current_matches: VecDeque<(Key, ValProbe, ValBuild)>,
 }
 impl<Key, ValBuild, ValProbe> HalfSetJoinState<Key, ValBuild, ValProbe> {
-    pub fn iter(&self) -> impl '_ + Iterator<Item = (Key, ValBuild)>
+    pub fn iter(&self) -> impl Iterator<Item = (&Key, &SmallVec<[ValBuild; 1]>)>
     where
         Key: Clone,
         ValBuild: Clone,
     {
-        self.table
-            .iter()
-            .flat_map(|(k, sv)| sv.iter().map(move |v| (k.clone(), v.clone())))
+        self.table.iter()
     }
 }
 

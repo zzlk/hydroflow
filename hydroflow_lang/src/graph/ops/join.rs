@@ -228,30 +228,18 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
                 {
                     use #root::compiled::pull::HalfJoinState;
 
-                    enum Either<ILhs, IRhs, K, V1, V2>
-                    where
-                        ILhs: Iterator<Item = (K, V1)>,
-                        IRhs: Iterator<Item = (K, V2)>,
+                    enum Either<K, V1, V2>
                     {
-                        Lhs(ILhs),
-                        Rhs(IRhs),
+                        Lhs(Vec<(K, V1)>),
+                        Rhs(Vec<(K, V2)>),
                         None,
-                    }
-
-                    fn extend_lifetime<'a, 'b, T>(x: &'a mut T) -> &'b mut T
-                    where
-                        'b: 'a
-                    {
-                        unsafe {
-                            &mut *(x as *mut T)
-                        }
                     }
 
                     let mut keys = if is_new_tick {
                         if lhs_state.len() < rhs_state.len() {
-                            Either::Lhs(extend_lifetime(lhs_state).iter())
+                            Either::Lhs(lhs_state.iter().flat_map(|(k, sv)| sv.iter().map(move |v| (k.clone(), v.clone()))).collect())
                         } else {
-                            Either::Rhs(extend_lifetime(rhs_state).iter())
+                            Either::Rhs(rhs_state.iter().flat_map(|(k, sv)| sv.iter().map(move |v| (k.clone(), v.clone()))).collect())
                         }
                     } else {
                         Either::None
@@ -267,7 +255,7 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
 
                         match keys {
                             Either::Lhs(ref mut x) => {
-                                while let ::std::option::Option::Some((k, v1)) = x.next() {
+                                while let ::std::option::Option::Some((k, v1)) = x.pop() {
                                     if let ::std::option::Option::Some((k, v1, v2)) = rhs_state.probe(&k, &v1) {
                                         return ::std::option::Option::Some((k, (v1, v2)));
                                     }
@@ -275,7 +263,7 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
                                 }
                             }
                             Either::Rhs(ref mut x) => {
-                                while let ::std::option::Option::Some((k, v2)) = x.next() {
+                                while let ::std::option::Option::Some((k, v2)) = x.pop() {
                                     if let ::std::option::Option::Some((k, v2, v1)) = lhs_state.probe(&k, &v2) {
                                         return ::std::option::Option::Some((k, (v1, v2)));
                                     }
