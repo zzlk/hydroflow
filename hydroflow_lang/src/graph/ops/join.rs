@@ -205,8 +205,8 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
         let lhs = &inputs[0];
         let rhs = &inputs[1];
         let write_iterator = quote_spanned! {op_span=>
-            let mut #lhs_borrow_ident = #context.state_ref(#lhs_joindata_ident).borrow_mut();
-            let mut #rhs_borrow_ident = #context.state_ref(#rhs_joindata_ident).borrow_mut();
+            let mut #lhs_borrow_ident = || #context.state_ref(#lhs_joindata_ident).borrow_mut();
+            let mut #rhs_borrow_ident = || #context.state_ref(#rhs_joindata_ident).borrow_mut();
             let mut #tick_borrow_ident = #context.state_ref(#tick_ident).borrow_mut();
 
             let #ident = {
@@ -215,79 +215,79 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
                 fn check_inputs<'a, K, I1, V1, I2, V2>(
                     mut lhs: I1,
                     mut rhs: I2,
-                    lhs_state: &'a mut #join_type<K, V1, V2>,
-                    rhs_state: &'a mut #join_type<K, V2, V1>,
+                    lhs_state_fn: impl 'a + Fn() -> ::std::cell::RefMut<'a, #join_type<K, V1, V2>>,
+                    rhs_state_fn: impl 'a + Fn() -> ::std::cell::RefMut<'a, #join_type<K, V2, V1>>,
                     is_new_tick: bool,
                 ) -> impl 'a + Iterator<Item = (K, (V1, V2))>
                 where
-                    K: Eq + std::hash::Hash + Clone,
-                    V1: Clone #additional_trait_bounds,
-                    V2: Clone #additional_trait_bounds,
+                    K: 'a + Eq + std::hash::Hash + Clone,
+                    V1: 'a + Clone #additional_trait_bounds,
+                    V2: 'a + Clone #additional_trait_bounds,
                     I1: 'a + Iterator<Item = (K, V1)>,
                     I2: 'a + Iterator<Item = (K, V2)>,
                 {
                     use #root::compiled::pull::HalfJoinState;
 
-                    enum Either<ILhs, IRhs, K, V1, V2>
-                    where
-                        ILhs: Iterator<Item = (K, V1)>,
-                        IRhs: Iterator<Item = (K, V2)>,
-                    {
-                        Lhs(ILhs),
-                        Rhs(IRhs),
-                        None,
-                    }
+                    // enum Either<ILhs, IRhs, K, V1, V2>
+                    // where
+                    //     ILhs: Iterator<Item = (K, V1)>,
+                    //     IRhs: Iterator<Item = (K, V2)>,
+                    // {
+                    //     Lhs(ILhs),
+                    //     Rhs(IRhs),
+                    //     None,
+                    // }
 
-                    fn extend_lifetime<'a, 'b, T>(x: &'a mut T) -> &'b mut T
-                    where
-                        'b: 'a
-                    {
-                        unsafe {
-                            &mut *(x as *mut T)
-                        }
-                    }
+                    // fn extend_lifetime<'a, 'b, T>(x: &'a mut T) -> &'b mut T
+                    // where
+                    //     'b: 'a
+                    // {
+                    //     unsafe {
+                    //         &mut *(x as *mut T)
+                    //     }
+                    // }
 
-                    let mut keys = if is_new_tick {
-                        if lhs_state.len() < rhs_state.len() {
-                            Either::Lhs(extend_lifetime(lhs_state).iter())
-                        } else {
-                            Either::Rhs(extend_lifetime(rhs_state).iter())
-                        }
-                    } else {
-                        Either::None
-                    };
+                    // let mut keys = if is_new_tick {
+                    //     if lhs_state.len() < rhs_state.len() {
+                    //         Either::Lhs(extend_lifetime(lhs_state).iter())
+                    //     } else {
+                    //         Either::Rhs(extend_lifetime(rhs_state).iter())
+                    //     }
+                    // } else {
+                    //     Either::None
+                    // };
+
+                    let mut #lhs_borrow_ident = (lhs_state_fn)();
+                    // let mut lhs_iter_state = #lhs_borrow;
+                    let mut lhs_keys = is_new_tick.then(|| ::std::cell::RefMut::map(#lhs_borrow_ident, |x| (&*x).iter()));
 
                     ::std::iter::from_fn(move || loop {
-                        if let ::std::option::Option::Some((k, v2, v1)) = lhs_state.pop_match() {
-                            return ::std::option::Option::Some((k, (v1, v2)));
-                        }
+                        let mut #lhs_borrow_ident = (lhs_state_fn)();
+                        let mut #rhs_borrow_ident = (rhs_state_fn)();
+
+                        let mut lhs_state = #lhs_borrow;
+                        let mut rhs_state = #rhs_borrow;
+
+                        // Emit matches
+                        // STAGE 1 AND 2
                         if let ::std::option::Option::Some((k, v1, v2)) = rhs_state.pop_match() {
                             return ::std::option::Option::Some((k, (v1, v2)));
                         }
-
-                        match keys {
-                            Either::Lhs(ref mut x) => {
-                                while let ::std::option::Option::Some((k, v1)) = x.next() {
-                                    if let ::std::option::Option::Some((k, v1, v2)) = rhs_state.probe(&k, &v1) {
-                                        return ::std::option::Option::Some((k, (v1, v2)));
-                                    }
-                                    continue;
+                        // STAGE 1
+                        if let ::std::option::Option::Some(ref mut x) = lhs_keys {
+                            while let ::std::option::Option::Some((k, v1)) = x.next() {
+                                if let ::std::option::Option::Some((k, v1, v2)) = rhs_state.probe(&k, &v1) {
+                                    return ::std::option::Option::Some((k, (v1, v2)));
                                 }
+                                continue;
                             }
-                            Either::Rhs(ref mut x) => {
-                                while let ::std::option::Option::Some((k, v2)) = x.next() {
-                                    if let ::std::option::Option::Some((k, v2, v1)) = lhs_state.probe(&k, &v2) {
-                                        return ::std::option::Option::Some((k, (v1, v2)));
-                                    }
-                                    continue;
-                                }
-                            }
-                            Either::None => {}
                         }
 
-                        // Drop the self-referencing iterator
-                        // Does this do anything...?
-                        keys = Either::None;
+                        // STAGE 2
+                        lhs_keys = ::std::option::Option::None;
+                        if let ::std::option::Option::Some((k, v2, v1)) = lhs_state.pop_match() {
+                            return ::std::option::Option::Some((k, (v1, v2)));
+                        }
 
                         if let ::std::option::Option::Some((k, v1)) = lhs.next() {
                             if lhs_state.build(k.clone(), &v1) {
@@ -319,7 +319,7 @@ pub const JOIN: OperatorConstraints = OperatorConstraints {
                         false
                     };
 
-                    check_inputs(#lhs, #rhs, #lhs_borrow, #rhs_borrow, __is_new_tick)
+                    check_inputs(#lhs, #rhs, #lhs_borrow_ident, #rhs_borrow_ident, __is_new_tick)
                 }
             };
         };
