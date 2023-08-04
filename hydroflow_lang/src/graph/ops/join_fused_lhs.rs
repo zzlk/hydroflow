@@ -165,7 +165,7 @@ pub const JOIN_FUSED_LHS: OperatorConstraints = OperatorConstraints {
         };
 
         let write_iterator_after =
-            if persistences[0] == Persistence::Static || persistences[1] == Persistence::Static {
+            if persistences[0] == Persistence::Static && persistences[1] == Persistence::Static {
                 quote_spanned! {op_span=>
                     // TODO: Probably only need to schedule if #*_borrow.len() > 0?
                     #context.schedule_subgraph(#context.current_subgraph(), false);

@@ -20,6 +20,18 @@ pub struct HalfSetJoinState<Key, ValBuild, ValProbe> {
     /// Not-yet emitted matches.
     current_matches: VecDeque<(Key, ValProbe, ValBuild)>,
 }
+impl<Key, ValBuild, ValProbe> HalfSetJoinState<Key, ValBuild, ValProbe> {
+    pub fn iter(&self) -> impl '_ + Iterator<Item = (Key, ValBuild)>
+    where
+        Key: Clone,
+        ValBuild: Clone,
+    {
+        self.table
+            .iter()
+            .flat_map(|(k, sv)| sv.iter().map(move |v| (k.clone(), v.clone())))
+    }
+}
+
 impl<Key, ValBuild, ValProbe> Default for HalfSetJoinState<Key, ValBuild, ValProbe> {
     fn default() -> Self {
         Self {
@@ -62,20 +74,29 @@ where
         false
     }
 
-    fn probe(&mut self, k: &Key, v: &ValProbe) {
-        if let Some(entry) = self.table.get(k) {
-            // TODO: We currently don't free/shrink the self.current_matches vecdeque to save time.
-            // This mean it will grow to eventually become the largest number of matches in a single probe call.
-            // Maybe we should clear this memory at the beginning of every tick/periodically?
-            self.current_matches.extend(
-                entry
-                    .iter()
-                    .map(|valbuild| (k.clone(), v.clone(), valbuild.clone())),
-            );
-        }
+    fn probe(&mut self, k: &Key, v: &ValProbe) -> Option<(Key, ValProbe, ValBuild)> {
+        // TODO: We currently don't free/shrink the self.current_matches vecdeque to save time.
+        // This mean it will grow to eventually become the largest number of matches in a single probe call.
+        // Maybe we should clear this memory at the beginning of every tick/periodically?
+        let mut iter = self
+            .table
+            .get(k)?
+            .iter()
+            .map(|valbuild| (k.clone(), v.clone(), valbuild.clone()));
+
+        let first = iter.next();
+
+        self.current_matches.extend(iter);
+
+        first
     }
 
     fn pop_match(&mut self) -> Option<(Key, ValProbe, ValBuild)> {
         self.current_matches.pop_front()
+    }
+
+    fn len(&mut self) -> usize {
+        // TODO: return the real length, number items rather than number of keys? Need to keep track of it manually since it is a map of vec rather than a multi-map
+        self.table.len()
     }
 }

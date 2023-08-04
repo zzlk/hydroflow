@@ -381,6 +381,8 @@ fn main() {
                         ),
                     ),
                 );
+            let sg_1v1_node_17v1_persisttick = df
+                .add_state(std::cell::RefCell::new(0usize));
             let sg_1v1_node_21v1_diffdata_handle = df
                 .add_state(
                     ::std::cell::RefCell::new(
@@ -581,11 +583,14 @@ fn main() {
                     let mut sg_1v1_node_17v1_joindata_rhs_borrow = context
                         .state_ref(sg_1v1_node_17v1_joindata_rhs)
                         .borrow_mut();
+                    let mut sg_1v1_node_17v1_persisttick_borrow = context
+                        .state_ref(sg_1v1_node_17v1_persisttick)
+                        .borrow_mut();
                     let op_17v1 = {
                         #[inline(always)]
                         fn check_inputs<'a, K, I1, V1, I2, V2>(
-                            lhs: I1,
-                            rhs: I2,
+                            mut lhs: I1,
+                            mut rhs: I2,
                             lhs_state: &'a mut hydroflow::compiled::pull::HalfMultisetJoinState<
                                 K,
                                 V1,
@@ -596,6 +601,7 @@ fn main() {
                                 V2,
                                 V1,
                             >,
+                            is_new_tick: bool,
                         ) -> impl 'a + Iterator<Item = (K, (V1, V2))>
                         where
                             K: Eq + std::hash::Hash + Clone,
@@ -604,21 +610,111 @@ fn main() {
                             I1: 'a + Iterator<Item = (K, V1)>,
                             I2: 'a + Iterator<Item = (K, V2)>,
                         {
-                            hydroflow::compiled::pull::SymmetricHashJoin::new_from_mut(
-                                lhs,
-                                rhs,
-                                lhs_state,
-                                rhs_state,
+                            use hydroflow::compiled::pull::HalfJoinState;
+                            enum Either<ILhs, IRhs, K, V1, V2>
+                            where
+                                ILhs: Iterator<Item = (K, V1)>,
+                                IRhs: Iterator<Item = (K, V2)>,
+                            {
+                                Lhs(ILhs),
+                                Rhs(IRhs),
+                                None,
+                            }
+                            fn extend_lifetime<'a, 'b, T>(x: &'a mut T) -> &'b mut T
+                            where
+                                'b: 'a,
+                            {
+                                unsafe { &mut *(x as *mut T) }
+                            }
+                            let mut keys = if is_new_tick {
+                                if lhs_state.len() < rhs_state.len() {
+                                    Either::Lhs(extend_lifetime(lhs_state).iter())
+                                } else {
+                                    Either::Rhs(extend_lifetime(rhs_state).iter())
+                                }
+                            } else {
+                                Either::None
+                            };
+                            ::std::iter::from_fn(move || {
+                                loop {
+                                    if let ::std::option::Option::Some((k, v2, v1))
+                                        = lhs_state.pop_match()
+                                    {
+                                        return ::std::option::Option::Some((k, (v1, v2)));
+                                    }
+                                    if let ::std::option::Option::Some((k, v1, v2))
+                                        = rhs_state.pop_match()
+                                    {
+                                        return ::std::option::Option::Some((k, (v1, v2)));
+                                    }
+                                    match keys {
+                                        Either::Lhs(ref mut x) => {
+                                            while let ::std::option::Option::Some((k, v1)) = x.next() {
+                                                if let ::std::option::Option::Some((k, v1, v2))
+                                                    = rhs_state.probe(&k, &v1)
+                                                {
+                                                    return ::std::option::Option::Some((k, (v1, v2)));
+                                                }
+                                                continue;
+                                            }
+                                        }
+                                        Either::Rhs(ref mut x) => {
+                                            while let ::std::option::Option::Some((k, v2)) = x.next() {
+                                                if let ::std::option::Option::Some((k, v2, v1))
+                                                    = lhs_state.probe(&k, &v2)
+                                                {
+                                                    return ::std::option::Option::Some((k, (v1, v2)));
+                                                }
+                                                continue;
+                                            }
+                                        }
+                                        Either::None => {}
+                                    }
+                                    keys = Either::None;
+                                    if let ::std::option::Option::Some((k, v1)) = lhs.next() {
+                                        if lhs_state.build(k.clone(), &v1) {
+                                            if let ::std::option::Option::Some((k, v1, v2))
+                                                = rhs_state.probe(&k, &v1)
+                                            {
+                                                return ::std::option::Option::Some((k, (v1, v2)));
+                                            }
+                                        }
+                                        continue;
+                                    }
+                                    if let ::std::option::Option::Some((k, v2)) = rhs.next() {
+                                        if rhs_state.build(k.clone(), &v2) {
+                                            if let ::std::option::Option::Some((k, v2, v1))
+                                                = lhs_state.probe(&k, &v2)
+                                            {
+                                                return ::std::option::Option::Some((k, (v1, v2)));
+                                            }
+                                        }
+                                        continue;
+                                    }
+                                    return None;
+                                }
+                            })
+                        }
+                        {
+                            let __is_new_tick = if *sg_1v1_node_17v1_persisttick_borrow
+                                < context.current_tick()
+                            {
+                                *sg_1v1_node_17v1_persisttick_borrow = context
+                                    .current_tick();
+                                true
+                            } else {
+                                false
+                            };
+                            check_inputs(
+                                op_19v1,
+                                op_20v1,
+                                &mut *sg_1v1_node_17v1_joindata_lhs_borrow
+                                    .get_mut_clear(context.current_tick()),
+                                &mut *sg_1v1_node_17v1_joindata_rhs_borrow
+                                    .get_mut_clear(context.current_tick()),
+                                __is_new_tick,
                             )
                         }
-                        check_inputs(
-                            op_19v1,
-                            op_20v1,
-                            &mut *sg_1v1_node_17v1_joindata_lhs_borrow
-                                .get_mut_clear(context.current_tick()),
-                            &mut *sg_1v1_node_17v1_joindata_rhs_borrow
-                                .get_mut_clear(context.current_tick()),
-                        )
                     };
                     let op_17v1 = {
                         #[allow(non_snake_case)]
