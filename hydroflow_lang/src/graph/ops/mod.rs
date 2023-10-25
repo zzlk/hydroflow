@@ -362,6 +362,7 @@ declare_ops![
     for_each::FOR_EACH,
     identity::IDENTITY,
     initialize::INITIALIZE,
+    instrument::INSTRUMENT,
     inspect::INSPECT,
     join::JOIN,
     join_fused::JOIN_FUSED,
