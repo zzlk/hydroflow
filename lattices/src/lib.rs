@@ -13,6 +13,7 @@ pub mod map_union;
 mod ord;
 mod pair;
 mod point;
+mod semiring;
 pub mod set_union;
 pub mod test;
 pub mod union_find;
