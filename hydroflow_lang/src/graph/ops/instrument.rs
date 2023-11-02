@@ -21,7 +21,8 @@ pub const INSTRUMENT: OperatorConstraints = OperatorConstraints {
     ports_out: None,
     input_delaytype_fn: |_| None,
     flow_prop_fn: None,
-    write_fn: |&WriteContextArgs {
+    write_fn: |wc @ &WriteContextArgs {
+                   hydroflow,
                    root,
                    op_span,
                    ident,
@@ -32,21 +33,34 @@ pub const INSTRUMENT: OperatorConstraints = OperatorConstraints {
                    ..
                },
                _| {
+        let name: &syn::Expr = &arguments[0];
+        let instrument_data = wc.make_ident("instrument_data");
+
+        let write_prologue = quote_spanned! {op_span=>
+            let #instrument_data = #hydroflow.add_state(
+                ::std::cell::RefCell::new(0usize)
+            );
+        };
+
         let write_iterator = if is_pull {
             let input = &inputs[0];
             quote_spanned! {op_span=>
-                let #ident = #input.flat_map(#arguments);
+                let #ident = #input.inspect(|_x| {
+                    eprintln!("pull {}: {}", #name, _x);
+                });
             }
         } else {
             let output = &outputs[0];
+
             quote_spanned! {op_span=>
-                let #ident = #root::pusherator::map::Map::new(
-                    #arguments,
-                    #root::pusherator::flatten::Flatten::new(#output)
-                );
+                let #ident = #root::pusherator::inspect::Inspect::new(|_x| {
+                    eprintln!("push {}: {}", #name, _x);
+                }, #output);
             }
         };
+
         Ok(OperatorWriteOutput {
+            write_prologue,
             write_iterator,
             ..Default::default()
         })

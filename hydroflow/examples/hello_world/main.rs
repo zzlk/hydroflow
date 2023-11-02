@@ -4,7 +4,7 @@ pub fn main() {
     let mut df = hydroflow_syntax! {
         source_iter(["Hello World"])
             -> instrument("tp1")
-            -> assert_eq(["meme"]);
+            -> assert_eq(["Hello World"]);
     };
     df.run_available();
 }
